@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Perpustakaan Barcode</title>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+<style>
+:root{--navy:#17324d;--blue:#2563eb;--bg:#f3f6fb;--line:#dbe3ee;--text:#172033;--muted:#64748b}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);font-family:Arial,sans-serif;color:var(--text)}
+header{background:linear-gradient(120deg,#17324d,#2563eb);color:white;padding:22px 18px}header h1{margin:0 0 7px;font-size:24px}header p{margin:0;opacity:.9}
+main{max-width:1200px;margin:auto;padding:18px}.tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+button{border:0;border-radius:8px;padding:10px 13px;cursor:pointer;font-weight:bold;background:#e2e8f0;color:#17324d}button.primary,.tab.active{background:var(--blue);color:white}button.danger{background:#fee2e2;color:#991b1b}button.small{padding:6px 8px;font-size:12px}
+.panel{display:none}.panel.active{display:block}.card{background:white;border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:16px;box-shadow:0 3px 12px #18324d0a}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}.stat{font-size:28px;font-weight:800;color:var(--blue);margin-top:8px}
+label{display:block;font-size:13px;font-weight:bold;margin:10px 0 5px}input,select{width:100%;padding:11px;border:1px solid #cbd5e1;border-radius:8px;background:white;font-size:15px}
+.row{display:flex;gap:8px;align-items:end;flex-wrap:wrap}.row>div{flex:1;min-width:170px}table{border-collapse:collapse;width:100%;font-size:14px}th,td{text-align:left;padding:10px;border-bottom:1px solid var(--line);vertical-align:top}th{background:#f8fafc}
+.tablewrap{overflow:auto}.muted{color:var(--muted);font-size:13px}.pill{display:inline-block;padding:4px 8px;border-radius:99px;background:#dbeafe;color:#1d4ed8;font-size:12px;font-weight:bold}.pill.late{background:#fee2e2;color:#b91c1c}.pill.done{background:#dcfce7;color:#166534}
+.notice{padding:10px;border-radius:8px;background:#eff6ff;color:#1e40af;font-size:13px;margin:10px 0}#reader{max-width:520px;width:100%;margin-top:12px}.hide{display:none!important}.status{margin:10px 0;padding:10px;background:#f1f5f9;border-radius:8px}.status.error{background:#fee2e2;color:#991b1b}.status.ok{background:#dcfce7;color:#166534}
+footer{text-align:center;padding:20px;color:var(--muted);font-size:12px}
+@media(max-width:600px){header h1{font-size:20px}main{padding:10px}.card{padding:12px}th,td{padding:8px}}
+</style></head><body>
+<header><h1>📚 Sistem Perpustakaan Barcode</h1><p>Database online Google Sheets • Peminjaman • Pengembalian • Durasi otomatis</p></header>
+<main>
+<div class="tabs">
+<button class="tab active" data-tab="dashboard">Dashboard</button><button class="tab" data-tab="books">Data Buku</button><button class="tab" data-tab="members">Data Anggota</button><button class="tab" data-tab="borrow">Peminjaman</button><button class="tab" data-tab="returns">Pengembalian</button><button class="tab" data-tab="reports">Laporan</button>
+</div>
+<div id="status" class="status">Menghubungkan ke database online…</div>
+<section id="dashboard" class="panel active"><div class="grid">
+<div class="card"><div class="muted">Judul buku</div><div class="stat" id="statBooks">0</div></div><div class="card"><div class="muted">Anggota</div><div class="stat" id="statMembers">0</div></div><div class="card"><div class="muted">Sedang dipinjam</div><div class="stat" id="statLoans">0</div></div><div class="card"><div class="muted">Terlambat</div><div class="stat" id="statLate">0</div></div></div>
+<div class="card"><h3>Peminjaman aktif</h3><div id="activeSummary" class="tablewrap"></div></div>
+<div class="notice">Data tersimpan di Google Sheets, sehingga dapat diakses bersama melalui website yang sama. Batasi akses web app kepada pengguna sekolah yang berwenang.</div></section>
+<section id="books" class="panel"><div class="card"><h2>Tambah / Perbarui Buku</h2><form id="bookForm"><div class="grid">
+<div><label>Kode barcode buku (unik per eksemplar)</label><input id="bookCode" required placeholder="BK0001"></div><div><label>Judul</label><input id="bookTitle" required></div><div><label>Penulis</label><input id="bookAuthor"></div><div><label>Kategori</label><input id="bookCategory"></div><div><label>Jumlah eksemplar</label><input id="bookQty" type="number" min="1" value="1" required></div></div>
+<p><button class="primary">Simpan Buku</button> <button type="button" id="makeBarcode">Buat barcode</button></p></form><div id="barcodeArea" class="hide"><svg id="barcodeSvg"></svg><div id="barcodeCaption"></div><button onclick="window.print()">Cetak barcode</button></div></div><div class="card"><h3>Daftar Buku</h3><div id="booksTable" class="tablewrap"></div></div></section>
+<section id="members" class="panel"><div class="card"><h2>Tambah Anggota</h2><form id="memberForm"><div class="grid"><div><label>Kode anggota / barcode kartu</label><input id="memberCode" required placeholder="AG0001"></div><div><label>Nama anggota</label><input id="memberName" required></div><div><label>Kelas / bagian</label><input id="memberGroup"></div><div><label>Kontak (opsional)</label><input id="memberPhone"></div></div><p><button class="primary">Simpan Anggota</button></p></form></div><div class="card"><h3>Daftar Anggota</h3><div id="membersTable" class="tablewrap"></div></div></section>
+<section id="borrow" class="panel"><div class="card"><h2>Catat Peminjaman</h2><div class="notice">Pindai barcode anggota dan buku. Kamera membutuhkan izin browser; gunakan URL HTTPS.</div>
+<div class="row"><div><label>Pindai barcode</label><input id="scanInput" placeholder="Klik kolom lalu pindai barcode"></div><div style="flex:0 0 auto"><button id="startScan" class="primary" type="button">Buka kamera</button></div><div style="flex:0 0 auto"><button id="stopScan" type="button">Tutup kamera</button></div></div><div id="reader" class="hide"></div>
+<form id="loanForm"><div class="grid"><div><label>Kode anggota</label><input id="loanMember" required></div><div><label>Kode buku</label><input id="loanBook" required></div><div><label>Tanggal pinjam</label><input id="loanDate" type="date" required></div><div><label>Lama pinjam (hari)</label><input id="loanDays" type="number" min="1" value="7" required></div><div><label>Jatuh tempo</label><input id="dueDate" type="date" required></div><div><label>Nama petugas (opsional)</label><input id="loanStaff"></div></div><p><button class="primary">Simpan Peminjaman</button></p></form></div></section>
+<section id="returns" class="panel"><div class="card"><h2>Pengembalian</h2><div class="row"><div><label>Cari berdasarkan ID pinjam atau kode buku</label><input id="returnCode" placeholder="PJXXXXXXXX atau BK0001"></div><div style="flex:0 0 auto"><button id="returnSearch" class="primary" type="button">Cari</button></div></div><div id="returnResult"></div><h3>Semua pinjaman aktif</h3><div id="returnTable" class="tablewrap"></div></div></section>
+<section id="reports" class="panel"><div class="card"><h2>Laporan Peminjaman</h2><div class="row"><div><label>Dari tanggal pinjam</label><input id="filterFrom" type="date"></div><div><label>Sampai tanggal pinjam</label><input id="filterTo" type="date"></div><div><label>Status</label><select id="filterStatus"><option value="all">Semua</option><option value="active">Masih dipinjam</option><option value="returned">Sudah kembali</option><option value="late">Terlambat (aktif)</option></select></div><div style="flex:0 0 auto"><button id="applyFilter" class="primary" type="button">Terapkan</button></div></div><p><button id="exportCsv">Unduh laporan CSV</button> <button id="backupJson">Unduh ringkasan JSON</button></p><div id="reportTable" class="tablewrap"></div></div><div class="card"><h3>Pengaturan</h3><label>Lama pinjam default (hari)</label><input id="defaultDays" type="number" min="1" value="7" style="max-width:180px"><p><button id="saveSettings" class="primary">Simpan pengaturan</button></p></div></section>
+<footer>Perpustakaan Barcode • Data utama disimpan di Google Sheets</footer>
+</main>
+<script>
+let db={books:[],members:[],loans:[],defaultDays:7,today:new Date().toISOString().slice(0,10)}, scanner=null;
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt=d=>d?new Date(d+'T12:00:00').toLocaleDateString('id-ID',{day:'2-digit',month:'short',year:'numeric'}):'-';
+const datePlus=(d,n)=>{let x=new Date(d+'T12:00:00');x.setDate(x.getDate()+Number(n));return x.toISOString().slice(0,10)};
+const book=c=>db.books.find(x=>x.code.toLowerCase()===String(c).toLowerCase());
+const member=c=>db.members.find(x=>x.code.toLowerCase()===String(c).toLowerCase());
+const active=()=>db.loans.filter(x=>!x.returnDate);
+const late=x=>!x.returnDate&&x.dueDate<db.today;
+const duration=x=>Math.max(0,Math.floor((new Date((x.returnDate||db.today)+'T12:00:00Z')-new Date(x.loanDate+'T12:00:00Z'))/86400000));
+const available=b=>Number(b.qty)-active().filter(x=>x.bookCode===b.code).length;
+function setStatus(msg,type=''){ $('status').textContent=msg;$('status').className='status '+type; }
+function callServer(fn,arg,success){setStatus('Memproses permintaan…');google.script.run.withSuccessHandler(data=>{if(data&&data.books)db=data;render();if(success)success(data);setStatus('Terhubung ke database online.','ok');}).withFailureHandler(e=>{setStatus('Gagal: '+(e.message||e),'error');alert(e.message||e);})[fn](...(Array.isArray(arg)?arg:[arg]));}
+function table(headers,rows){return rows.length?'<table><thead><tr>'+headers.map(h=>'<th>'+h+'</th>').join('')+'</tr></thead><tbody>'+rows.join('')+'</tbody></table>':'<p class="muted">Belum ada data.</p>'}
+function render(){
+$('statBooks').textContent=db.books.length;$('statMembers').textContent=db.members.length;$('statLoans').textContent=active().length;$('statLate').textContent=active().filter(late).length;
+$('booksTable').innerHTML=table(['Barcode','Judul','Penulis','Kategori','Stok','Tersedia','Aksi'],db.books.map(b=>`<tr><td>${esc(b.code)}</td><td>${esc(b.title)}</td><td>${esc(b.author)}</td><td>${esc(b.category)}</td><td>${b.qty}</td><td>${available(b)}</td><td><button class="small" onclick="showBarcode('${esc(b.code)}')">Barcode</button> <button class="small danger" onclick="deleteBook('${esc(b.code)}')">Hapus</button></td></tr>`));
+$('membersTable').innerHTML=table(['Barcode','Nama','Kelas/Bagian','Kontak','Aksi'],db.members.map(m=>`<tr><td>${esc(m.code)}</td><td>${esc(m.name)}</td><td>${esc(m.group)}</td><td>${esc(m.phone)}</td><td><button class="small danger" onclick="deleteMember('${esc(m.code)}')">Hapus</button></td></tr>`));
+$('activeSummary').innerHTML=table(['ID','Anggota','Buku','Tanggal pinjam','Jatuh tempo','Lama berjalan'],active().map(x=>`<tr><td>${esc(x.id)}</td><td>${esc(x.memberName)}</td><td>${esc(x.bookTitle)}</td><td>${fmt(x.loanDate)}</td><td><span class="pill ${late(x)?'late':''}">${fmt(x.dueDate)}${late(x)?' • TERLAMBAT':''}</span></td><td>${duration(x)} hari</td></tr>`));
+$('returnTable').innerHTML=table(['ID','Anggota','Buku','Pinjam','Jatuh tempo','Durasi berjalan','Aksi'],active().map(x=>`<tr><td>${esc(x.id)}</td><td>${esc(x.memberName)}</td><td>${esc(x.bookTitle)} (${esc(x.bookCode)})</td><td>${fmt(x.loanDate)}</td><td>${fmt(x.dueDate)}</td><td>${duration(x)} hari</td><td><button class="small primary" onclick="returnLoan('${esc(x.id)}')">Kembalikan hari ini</button></td></tr>`));
+$('defaultDays').value=db.defaultDays||7;renderReports();
+}
+function renderReports(){
+let from=$('filterFrom').value,to=$('filterTo').value,status=$('filterStatus').value;
+let rows=db.loans.filter(x=>(!from||x.loanDate>=from)&&(!to||x.loanDate<=to));
+if(status==='active')rows=rows.filter(x=>!x.returnDate);if(status==='returned')rows=rows.filter(x=>x.returnDate);if(status==='late')rows=rows.filter(late);
+$('reportTable').innerHTML=table(['ID','Anggota','Buku','Pinjam','Jatuh tempo','Kembali','Durasi aktual','Status'],rows.slice().reverse().map(x=>`<tr><td>${esc(x.id)}</td><td>${esc(x.memberName)}</td><td>${esc(x.bookTitle)}</td><td>${fmt(x.loanDate)}</td><td>${fmt(x.dueDate)}</td><td>${fmt(x.returnDate)}</td><td>${duration(x)} hari</td><td>${x.returnDate?'<span class="pill done">Kembali</span>':late(x)?'<span class="pill late">Terlambat</span>':'<span class="pill">Dipinjam</span>'}</td></tr>`));
+}
+document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));b.classList.add('active');$(b.dataset.tab).classList.add('active');});
+$('bookForm').onsubmit=e=>{e.preventDefault();callServer('saveBook',[{code:$('bookCode').value.trim(),title:$('bookTitle').value.trim(),author:$('bookAuthor').value,category:$('bookCategory').value,qty:$('bookQty').value}],()=>{e.target.reset();$('bookQty').value=1;});};
+$('memberForm').onsubmit=e=>{e.preventDefault();callServer('saveMember',[{code:$('memberCode').value.trim(),name:$('memberName').value.trim(),group:$('memberGroup').value,phone:$('memberPhone').value}],()=>e.target.reset());};
+window.deleteBook=c=>{if(confirm('Hapus buku '+c+'?'))callServer('deleteBook',[c]);};window.deleteMember=c=>{if(confirm('Hapus anggota '+c+'?'))callServer('deleteMember',[c]);};
+$('loanDate').value=db.today;$('loanDays').value=db.defaultDays;$('dueDate').value=datePlus(db.today,db.defaultDays);
+$('loanDate').onchange=()=>{$('dueDate').value=datePlus($('loanDate').value,$('loanDays').value)};
+$('loanDays').oninput=()=>{if($('loanDate').value&&Number($('loanDays').value)>0)$('dueDate').value=datePlus($('loanDate').value,$('loanDays').value)};
+$('loanForm').onsubmit=e=>{e.preventDefault();let d={memberCode:$('loanMember').value.trim(),bookCode:$('loanBook').value.trim(),loanDate:$('loanDate').value,dueDate:$('dueDate').value,staff:$('loanStaff').value.trim()};callServer('saveLoan',[d],()=>{$('loanBook').value='';$('loanMember').value='';$('loanStaff').value='';alert('Peminjaman berhasil dicatat.');});};
+window.returnLoan=id=>{if(confirm('Catat pengembalian buku hari ini untuk '+id+'?'))callServer('returnLoan',[id],data=>{let x=data.loans.find(l=>l.id===id);alert('Pengembalian tersimpan. Durasi peminjaman: '+(x?x.duration:0)+' hari.');});};
+$('returnSearch').onclick=()=>{let v=$('returnCode').value.trim().toLowerCase();let x=active().find(a=>a.id.toLowerCase()===v||a.bookCode.toLowerCase()===v);$('returnResult').innerHTML=x?`<div class="notice">ID ${esc(x.id)} • ${esc(x.memberName)} • ${esc(x.bookTitle)} • Pinjam ${fmt(x.loanDate)} • Berjalan ${duration(x)} hari.</div><button class="primary" onclick="returnLoan('${esc(x.id)}')">Konfirmasi pengembalian</button>`:'<p class="muted">Pinjaman aktif tidak ditemukan.</p>';};
+$('scanInput').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();let v=e.target.value.trim();if(member(v))$('loanMember').value=v;else if(book(v))$('loanBook').value=v;else alert('Kode tidak ditemukan. Pastikan kode sudah terdaftar.');e.target.value='';}};
+$('makeBarcode').onclick=()=>showBarcode($('bookCode').value.trim());
+window.showBarcode=code=>{if(!code)return alert('Masukkan kode buku.');if(!window.JsBarcode)return alert('Library barcode gagal dimuat. Periksa internet.');$('barcodeArea').classList.remove('hide');JsBarcode('#barcodeSvg',code,{format:'CODE128',displayValue:true,height:65,margin:10});$('barcodeCaption').textContent='Barcode: '+code;};
+$('startScan').onclick=async()=>{if(!window.Html5Qrcode)return alert('Pemindai gagal dimuat. Periksa internet.');$('reader').classList.remove('hide');try{scanner ||= new Html5Qrcode('reader');await scanner.start({facingMode:'environment'},{fps:10,qrbox:{width:240,height:140}},v=>{v=v.trim();if(member(v))$('loanMember').value=v;else if(book(v))$('loanBook').value=v;else $('scanInput').value=v;scanner.pause(true);setTimeout(()=>{try{scanner.resume()}catch(e){}},1000);},()=>{});}catch(e){alert('Kamera tidak bisa dibuka. Gunakan URL HTTPS dan izinkan kamera.');}};
+$('stopScan').onclick=async()=>{if(scanner){try{await scanner.stop()}catch(e){}}$('reader').classList.add('hide');};
+$('applyFilter').onclick=renderReports;
+$('exportCsv').onclick=()=>{let rows=[['ID','Kode Anggota','Nama Anggota','Kode Buku','Judul Buku','Tanggal Pinjam','Jatuh Tempo','Tanggal Kembali','Durasi Hari','Status']];db.loans.forEach(x=>rows.push([x.id,x.memberCode,x.memberName,x.bookCode,x.bookTitle,x.loanDate,x.dueDate,x.returnDate,duration(x),x.returnDate?'Kembali':late(x)?'Terlambat':'Dipinjam']));download('laporan-perpustakaan.csv','\ufeff'+rows.map(r=>r.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(';')).join('\r\n'),'text/csv;charset=utf-8;');};
+$('backupJson').onclick=()=>google.script.run.withSuccessHandler(x=>download('cadangan-perpustakaan.json',JSON.stringify(x,null,2),'application/json')).withFailureHandler(e=>alert(e.message)).exportBackup();
+$('saveSettings').onclick=()=>callServer('saveSettings',[$('defaultDays').value],()=>alert('Pengaturan disimpan.'));
+function download(n,c,t){let a=document.createElement('a');a.href=URL.createObjectURL(new Blob([c],{type:t}));a.download=n;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);}
+google.script.run.withSuccessHandler(data=>{db=data;$('loanDate').value=db.today;$('loanDays').value=db.defaultDays;$('dueDate').value=datePlus(db.today,db.defaultDays);render();setStatus('Terhubung ke database online.','ok');}).withFailureHandler(e=>setStatus('Gagal memuat database: '+e.message,'error')).getInitialData();
+</script></body></html>
